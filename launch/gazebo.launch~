@@ -1,0 +1,7 @@
+
+<launch>
+  <master auto="start"/>
+  <param name="/use_sim_time" value="true"/>
+  <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/> 
+
+</launch>

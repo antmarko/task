@@ -1,0 +1,6 @@
+<launch>
+        <node name="crsm_slam_node" type="crsm_slam_node" pkg="crsm_slam" respawn="false" ns="crsm_slam" output="screen"/>
+	<rosparam file="$(find task)/config2/crsm_slam_parameters.yaml" command="load" ns="crsm_slam"/>
+	<node pkg="tf" type="static_transform_publisher" name="world2map" args="0 0 0 0 0 0  world map 100" />
+	<node pkg="tf" type="static_transform_publisher" name="map2odom" args="0 0 0 0 0 0  map odom 100" />
+</launch>

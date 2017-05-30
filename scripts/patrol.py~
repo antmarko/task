@@ -1,0 +1,125 @@
+#!/usr/bin/env python
+import rospy
+from nav_msgs.msg import OccupancyGrid
+import numpy
+from random import randint
+from sensor_msgs.msg import LaserScan
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+import actionlib
+from actionlib_msgs.msg import *
+from geometry_msgs.msg import Pose, Point, Quaternion
+import numpy
+import math
+
+
+class Example:
+
+    def __init__(self):
+	
+	self.origin = {}
+	self.origin['x'] = -50
+	self.origin['y'] = -50
+	self.resolution = 0.05
+	self.ogm = []
+	self.ogm_info = 0
+	self.width=0
+	self.height=0
+	self.x=0
+	self.y=0
+	self.flag=False
+	
+
+	# What to do if shut down (e.g. Ctrl-C or failure)
+	#rospy.on_shutdown(self.shutdown)
+	# Tell the action client that we want to spin a thread by default
+	self.move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+	rospy.loginfo("Wait for the action server to come up")
+	# Allow up to 5 seconds for the action server to come up
+	self.move_base.wait_for_server(rospy.Duration(5))
+        #Read occupancy grid map
+        rospy.Subscriber('/map',OccupancyGrid, self.readMap)
+
+    def readMap(self, data):
+	print 'Width is :'+str(data.info.width)
+	print 'Height is :'+str(data.info.height)	
+	self.width=data.info.width
+	self.height=data.info.height
+	self.ogm_info = data.info
+	if len(self.ogm)==0:
+	    print 'First time callback'
+	    #self.ogm = numpy.zeros((data.info.width, data.info.height), dtype = numpy.int)
+	    self.ogm = numpy.full((data.info.width, data.info.height),-1, dtype = numpy.int)
+	for x in range(0, data.info.width-1):
+	   for y in range(0, data.info.height-1):
+	   	self.ogm[x][y] = data.data[x + data.info.width * y]
+	self.resolution = data.info.resolution
+	self.origin['x'] = data.info.origin.position.x
+	self.origin['y'] = data.info.origin.position.y
+	self.flag=True
+	print str(self.resolution)
+
+    def select_target(self):
+	#Select an unoccupied point from occupancy grid map(equal to zero)
+	if len(self.ogm)>0 and self.flag==True:
+		
+                target=False
+	        while target==False:
+		   self.x=randint(0,self.width-1)
+	           self.y=randint(0,self.height-1)
+		   if self.ogm[self.x][self.y]==0 and self.check(100,self.x,self.y,self.ogm)==False and self.check \               	(-1,self.x,self.y,self.ogm)==True:
+                        if len(self.getsubgrid(self.x,self.y,self.ogm))>0:
+			    target=True
+		# Send a goal		
+		goal = MoveBaseGoal()
+		goal.target_pose.header.frame_id = 'map'
+		goal.target_pose.header.stamp = rospy.Time.now()
+		#Transform ogm point to map coordinates (coordinate*resolution +map_origin)
+		x=self.x*self.resolution+self.origin['x']
+		y=self.y*self.resolution+self.origin['y']
+
+		goal.target_pose.pose = Pose(Point(x,y, 0.000),Quaternion(0, 0, 0, 1))
+	        print 'X coordinate :'+ str(x)
+		print 'Y coordinate :'+str(y)     
+		print 'Value :'+str(self.ogm[self.x][self.y])
+		                        
+		# Start moving
+		self.move_base.send_goal(goal)
+		# Allow TurtleBot to complete task
+		self.move_base.wait_for_result() 
+		print 'Goal reached'
+    
+    def check(self,value,pointx,pointy,grid):
+	return any(value in sublist for sublist in self.getsubgrid(pointx,pointy,grid))
+
+    def getsubgrid(self,x,y,grid):
+	x1=y-math.ceil(0.7/self.resolution)
+	x2=y+math.ceil(0.7/self.resolution)
+	y1=x-math.ceil(0.7/self.resolution)
+	y2=x+math.ceil(0.7/self.resolution)
+    	return [item[x1:x2] for item in grid[y1:y2]]
+		
+	
+
+
+
+
+
+	
+
+if __name__ == '__main__':
+    try:
+        # Init ROS node
+        rospy.init_node('service_example')
+
+        # Instatiated the class
+        NC = Example()
+
+        # Wait
+        #rospy.spin()
+	
+	while not rospy.is_shutdown():
+	    NC.select_target()
+
+		
+    except rospy.ROSInterruptException:
+        pass
